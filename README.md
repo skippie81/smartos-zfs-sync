@@ -23,6 +23,6 @@ Backup remote smartos zfs volumes and syncronize
 
 ```
 
-## Warn
+## Warning
 
 The -f option for sending to files only supports full zfs send no incremental sends implemented yet.
