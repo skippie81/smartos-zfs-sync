@@ -7,7 +7,7 @@ function do_help {
 cat <<EOF
   backup and sync remote zfs volumes over ssh
 
-  usage: $0 -r <host>|-s <host> [-i <keyfile>] -p <destination zfs> [-f] [-c] [-h] [ZFS] [ZFS] ...
+  usage: $0 -r <host>|-s <host> [-i <keyfile>] -p <destination zfs> [-Z] [-f] [-c] [-h] [ZFS] [ZFS] ...
     -r <host>             :   receiving mode. the host this scripts runs on is the backup host and receives the zfs stream from <host>
     -s <host>             :   sending mode.   the host this scripts runs on is the source host and sends its zfs stream out to <host>
 
@@ -21,6 +21,7 @@ cat <<EOF
 
     -h                    :   displays this help message
 
+    -Z                    :   include all zfs linked to vmadm LX or OS zones (if -Z the other ZFS list can be empty)
     [ZFS] ...             :   list of zfs to sync
 EOF
 if [[ "$@" != "" ]]
@@ -45,8 +46,10 @@ to_file=false
 zfs_volumes=''
 destination_pool=''
 
+zone_backup=false
+
 # read options
-while getopts ":hfcr:s:p:i:" opt
+while getopts ":hfcZr:s:d:i:" opt
 do
   case $opt in
     r)  mode=receiving
@@ -57,13 +60,15 @@ do
         ;;
     i)  remote_key=$OPTARG
         ;;
-    p)  destination_pool=$OPTARG
+    d)  destination_pool=$OPTARG
         ;;
     f)  to_file=true
         ;;
     c)  cleanup=true
         ;;
     h)  do_help
+        ;;
+    Z)  zone_backup=true
         ;;
     \?) do_help "Invalid option: -$OPTARG"
         ;;
@@ -81,7 +86,6 @@ zfs_volumes="$@"
 
 if [[ $mode == '' ]]; then do_help "mode -r or -s required"; fi
 if [[ $destination_pool = '' ]]; then do_help "-p <destination pool> required"; fi
-if [[ $zfs_volumes = '' ]]; then do_help "source zfs required"; fi
 if ( $to_file ); then mode="${mode}-file"; fi
 if [[ $remote_host == '' ]]; then do_help "remote host not given"; fi
 
@@ -258,6 +262,28 @@ function cleanup_source_snap {
                   ;;
   esac
 }
+
+function get_zone_zfs_list {
+  case $mode in
+    receiving*)   ( $SSH_COMMAND vmadm list -H -o zonepath type=OS 2> /dev/null | sed -e 's/^\///g'
+                    $SSH_COMMAND vmadm list -H -o zonepath type=LX 2> /dev/null | sed -e 's/^\///g' ) | tr '\n' ' '
+                  ;;
+    sending*)     ( vmadm list -H -o zonepath type=OS | sed -e 's/^\///g'
+                    vmadm list -H -o zonepath type=LX | sed -e 's/^\///g' ) | tr '\n' ' '
+                  ;;
+    *)            exit 1
+                  ;;
+  esac
+}
+
+# check zfs list input
+
+if ( $zone_backup )
+then
+  zfs_volumes="$zfs_volumes $(get_zone_zfs_list)"
+fi
+
+if [[ $zfs_volumes = '' ]]; then do_help "source zfs required"; fi
 
 # main
 
