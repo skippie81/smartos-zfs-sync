@@ -5,7 +5,7 @@ Backup remote smartos zfs volumes and syncronize
 ## Usage
 
 ```
-  usage: ./zfs-syn.sh -r <host>|-s <host> [-i <keyfile>] -p <destination zfs> [-f] [-c] [-h] [ZFS] [ZFS] ...
+  usage: zfs-sync.sh -r <host>|-s <host> [-i <keyfile>] -p <destination zfs> [-Z] [-f] [-c] [-h] [ZFS] [ZFS] ...
     -r <host>             :   receiving mode. the host this scripts runs on is the backup host and receives the zfs stream from <host>
     -s <host>             :   sending mode.   the host this scripts runs on is the source host and sends its zfs stream out to <host>
 
@@ -19,6 +19,7 @@ Backup remote smartos zfs volumes and syncronize
 
     -h                    :   displays this help message
 
+    -Z                    :   include all zfs linked to vmadm LX or OS zones (if -Z the other ZFS list can be empty)
     [ZFS] ...             :   list of zfs to sync
 
 ```
