@@ -7,7 +7,7 @@ function do_help {
 cat <<EOF
   backup and sync remote zfs volumes over ssh
 
-  usage: $0 -r <host>|-s <host> [-i <keyfile>] -p <destination zfs> [-Z] [-f] [-c] [-h] [ZFS] [ZFS] ...
+  usage: $0 -r <host>|-s <host> [-i <keyfile>] -p <destination zfs> [-Z] [-f] [-c] [-p <snapshot prefix>] [-h] [ZFS] [ZFS] ...
     -r <host>             :   receiving mode. the host this scripts runs on is the backup host and receives the zfs stream from <host>
     -s <host>             :   sending mode.   the host this scripts runs on is the source host and sends its zfs stream out to <host>
 
@@ -18,6 +18,8 @@ cat <<EOF
 
     -f                    :   file mode.      the backup host stores the zfs streams in compressed files
     -c                    :   enable cleanup. removes older snapshots on the source volume (only keeps the latest backup snap)
+
+    -p <snapshot prefix>  :   snapshot prefix, the default is \'snap\' resulting in a snapshot name: snap-YYYYmmddTHHMMSS
 
     -h                    :   displays this help message
 
@@ -49,7 +51,7 @@ destination_pool=''
 zone_backup=false
 
 # read options
-while getopts ":hfcZr:s:d:i:" opt
+while getopts ":hfcZr:s:d:i:p:" opt
 do
   case $opt in
     r)  mode=receiving
@@ -69,6 +71,8 @@ do
     h)  do_help
         ;;
     Z)  zone_backup=true
+        ;;
+    p)  snap_prefix=$OPTARG
         ;;
     \?) do_help "Invalid option: -$OPTARG"
         ;;
@@ -234,10 +238,10 @@ function incremental_zfs_send {
 
   case $mode in
     receiving)      $SSH_COMMAND "zfs send -i ${source_volume_name}@${from_snap} ${source_volume_name}@${to_snap} | gzip -9" 2> /dev/null | \
-                      gunzip -c - | zfs receive $destination_volume_name
+                      gunzip -c - | zfs receive -F $destination_volume_name
                     ;;
     sending)        zfs send -i ${source_volume_name}@${from_snap} ${source_volume_name}@${to_snap} | gzip -9 | \
-                      $SSH_COMMAND "gunzip -c - | zfs receive $destination_volume_name" 2> /dev/null
+                      $SSH_COMMAND "gunzip -c - | zfs receive -F $destination_volume_name" 2> /dev/null
                     ;;
     receiving-file) $SSH_COMMAND "zfs send -i ${source_volume_name}@${from_snap} ${source_volume_name}@${to_snap} | gzip -9" 2> /dev/null \
                       1> "${destination_volume_name}_${snapshot_name}.zfs.gz"
