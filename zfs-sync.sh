@@ -92,6 +92,7 @@ if [[ $mode == '' ]]; then do_help "mode -r or -s required"; fi
 if [[ $destination_pool = '' ]]; then do_help "-p <destination pool> required"; fi
 if ( $to_file ); then mode="${mode}-file"; fi
 if [[ $remote_host == '' ]]; then do_help "remote host not given"; fi
+if ! [[ $snap_prefix =~ ^[a-zA-Z0-9]+$ ]]; then do_help "snapshot prefix can only contain normal chars,numbers and _ or -"; fi
 
 
 SSH_COMMAND="ssh $remote_host"
