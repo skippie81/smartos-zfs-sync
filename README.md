@@ -27,6 +27,6 @@ backup and sync remote zfs volumes over ssh
     [ZFS] ...             :   list of zfs to sync
 ```
 
-## Warning
+## WARNING
 
 The -f option for sending to files only supports full zfs send no incremental sends implemented yet.
