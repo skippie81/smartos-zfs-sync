@@ -12,6 +12,15 @@ chmod +x zfs-sync.sh
 
 ## Usage
 
+Before you start the first backup.
+- if using in default "send to zfs volume mode" the destination zfs volume should exits on the host that is receiving the zfs stream
+- if using in "send to files mode" the destination directory should exist
+
+If running with cleanup of old snapshot used for sending by the script (-c option). 
+Only run this sync to one host as it will clean all previous snaps and if using for send to multiple hosts you might cleanup snap still needed to send next sync to differend host.
+You might use cleanup function in combination with multiple backup locations in combination with the -p option and add a differend sanpshot prefix for ervery destination.
+ 
+
 ```
   backup and sync remote zfs volumes over ssh
 
@@ -28,10 +37,16 @@ chmod +x zfs-sync.sh
     -f                    :   file mode.      the backup host stores the zfs streams in compressed files
     -c                    :   enable cleanup. removes older snapshots on the source volume (only keeps the latest backup snap)
 
-    -p <snapshot prefix>  :   snapshot prefix, the default is \'snap\' resulting in a snapshot name: snap-YYYYmmddTHHMMSS
+    -p <snapshot prefix>  :   snapshot prefix, the default is 'snap' resulting in a snapshot name: snap-YYYYmmddTHHMMSS
 
     -h                    :   displays this help message
 
     -Z                    :   include all zfs linked to vmadm LX or OS zones (if -Z the other ZFS list can be empty)
     [ZFS] ...             :   list of zfs to sync
+```
+
+example that would be run on the backup host and receives zfs volumes of all OS and LX zones and an extra zones/extra volme would be:
+
+```
+./zfs-sync.sh -r host.example.com -i my-private-key -d zones/backup/host.example.com -c -Z zones/extra
 ```
