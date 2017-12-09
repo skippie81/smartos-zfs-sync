@@ -8,11 +8,12 @@ function do_help {
 cat <<EOF
   backup and sync remote zfs volumes over ssh
 
-  usage: $0 -r <host>|-s <host> [-i <keyfile>] -p <destination zfs> [-Z] [-f] [-c] [-p <snapshot prefix>] [-h] [ZFS] [ZFS] ...
+  usage: $0 -r <host>|-s <host> [-i <keyfile>] [-P <port>] -p <destination zfs> [-Z] [-f] [-c] [-p <snapshot prefix>] [-h] [ZFS] [ZFS] ...
     -r <host>             :   receiving mode. the host this scripts runs on is the backup host and receives the zfs stream from <host>
     -s <host>             :   sending mode.   the host this scripts runs on is the source host and sends its zfs stream out to <host>
 
     -i <keyfile>          :   ssh key file for the remote host
+    -P <port>             :   ssh port for the remote host
 
     -d <destination zfs>  :   the pool to receive the zfs stream (a zfs <destination pool>/<source zfs> wil be created for every source
                               in file mode this has to be and existing path to store the files
@@ -38,6 +39,7 @@ exit 0
 
 # vars
 snap_prefix=snap
+ssh_port=22
 ts=$(date +"%Y%m%dT%H%M%S")
 
 mode=''
@@ -52,7 +54,7 @@ destination_pool=''
 zone_backup=false
 
 # read options
-while getopts ":hfcZr:s:d:i:p:" opt
+while getopts ":hfcZr:s:d:i:p:P:" opt
 do
   case $opt in
     r)  mode=receiving
@@ -75,6 +77,8 @@ do
         ;;
     p)  snap_prefix=$OPTARG
         ;;
+    P)  ssh_port=$OPTARG
+        ;;
     \?) do_help "Invalid option: -$OPTARG"
         ;;
     :)  do_help "Option -$OPTARG requires value"
@@ -88,12 +92,12 @@ zfs_volumes="$@"
 
 
 # input checks
-
 if [[ $mode == '' ]]; then do_help "mode -r or -s required"; fi
 if [[ $destination_pool = '' ]]; then do_help "-p <destination pool> required"; fi
 if ( $to_file ); then mode="${mode}-file"; fi
 if [[ $remote_host == '' ]]; then do_help "remote host not given"; fi
 if ! [[ $snap_prefix =~ ^[a-zA-Z0-9]+$ ]]; then do_help "snapshot prefix can only contain normal chars,numbers and _ or -"; fi
+if ! [[ $ssh_port =~ ^[0-9]+$ ]]; then do_help "ssh port expect number"; fi
 
 # removing leading / when destination is zfs pool
 # the destination sould be <pool>/<vol>[[/vol]/...]
@@ -103,16 +107,29 @@ then
   destination_pool=$(echo $destination_pool | sed -e 's/^\///g')
 fi
 
-SSH_COMMAND="ssh $remote_host"
+# building the ssh command line
+SSH_COMMAND="ssh"
 if [[ $remote_key != '' ]]
 then
   if [[ -f $remote_key ]]
   then
-    SSH_COMMAND="ssh -i $remote_key $remote_host"
+    SSH_COMMAND="$SSH_COMMAND -i $remote_key"
   else
     echo "Given key file not found!" >&2
     exit 1
   fi
+fi
+if [[ $ssh_port -ne 22 ]]
+then
+  SSH_COMMAND="$SSH_COMMAND -p $ssh_port"
+fi
+SSH_COMMAND="$SSH_COMMAND $remote_host"
+
+# testing ssh connection
+if ! ( $SSH_COMMAND id 2> /dev/null 1>&2 )
+then
+  echo "ERROR: ssh connection - $SSH_COMMAND - not working"
+  exit 1
 fi
 
 # functions

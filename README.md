@@ -6,13 +6,14 @@ Or backup local zfs volumes over ssh to a remote zfs volumes or file(s)
 ## Usage
 
 ```
-backup and sync remote zfs volumes over ssh
+  backup and sync remote zfs volumes over ssh
 
-  usage: zfs-sync.sh -r <host>|-s <host> [-i <keyfile>] -p <destination zfs> [-Z] [-f] [-c] [-p <snapshot prefix>] [-h] [ZFS] [ZFS] ...
+  usage: zfs-sync.sh -r <host>|-s <host> [-i <keyfile>] [-P <port>] -p <destination zfs> [-Z] [-f] [-c] [-p <snapshot prefix>] [-h] [ZFS] [ZFS] ...
     -r <host>             :   receiving mode. the host this scripts runs on is the backup host and receives the zfs stream from <host>
     -s <host>             :   sending mode.   the host this scripts runs on is the source host and sends its zfs stream out to <host>
 
     -i <keyfile>          :   ssh key file for the remote host
+    -P <port>             :   ssh port for the remote host
 
     -d <destination zfs>  :   the pool to receive the zfs stream (a zfs <destination pool>/<source zfs> wil be created for every source
                               in file mode this has to be and existing path to store the files
