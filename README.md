@@ -1,6 +1,7 @@
 # smartos-zfs-sync
 
-Backup remote smartos zfs volmes over ssh to local zfs volumes or to files.
+Backup remote smartos zfs volmes over ssh to local zfs volumes or to file(s).
+Or backup local zfs volumes over ssh to a remote zfs volumes or file(s)
 
 ## Usage
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-#todo: fix file listings and sends in file mode
+trap "exit 1" TERM
+export SCRIPT_PID=$$
 
 # print help
 function do_help {
@@ -94,6 +95,13 @@ if ( $to_file ); then mode="${mode}-file"; fi
 if [[ $remote_host == '' ]]; then do_help "remote host not given"; fi
 if ! [[ $snap_prefix =~ ^[a-zA-Z0-9]+$ ]]; then do_help "snapshot prefix can only contain normal chars,numbers and _ or -"; fi
 
+# removing leading / when destination is zfs pool
+# the destination sould be <pool>/<vol>[[/vol]/...]
+# if there is a leading / the zfs list en zfs list -r succeeds buth the zfs receive fails
+if [[ $mode == 'sending' || $mode == 'receiving' ]]
+then
+  destination_pool=$(echo $destination_pool | sed -e 's/^\///g')
+fi
 
 SSH_COMMAND="ssh $remote_host"
 if [[ $remote_key != '' ]]
@@ -115,14 +123,49 @@ function check_source {
                   ;;
     sending*)     zfs_count=$(zfs list -H $1 2> /dev/null | wc -l)
                   ;;
-    *)            exit 1
+    *)            kill -s TERM $SCRIPT_PID
                   ;;
   esac
 
   if [[ $zfs_count -eq 0 ]]
   then
-    exit 1
+    printf "failed\n"
+    kill -s TERM $SCRIPT_PID
   fi
+}
+
+function check_destination_pool {
+  case $mode in
+    receiving)        zfs list -H $1 1> /dev/null 2>&1
+                      if [[ $? -ne  0 ]]
+                      then
+                        printf "destination pool not found\n"
+                        kill -s TERM $SCRIPT_PID
+                      fi
+                      ;;
+    sending)          $SSH_COMMAND zfs list -H $1 1> /dev/null 2>&1
+                      if [[ $? -ne  0 ]]
+                      then
+                        printf "destination pool not found\n"
+                        kill -s TERM $SCRIPT_PID
+                      fi
+                      ;;
+    receiving-file)   if ! [[ -d $1 ]]
+                      then
+                        printf "destination directory not found\n"
+                        kill -s TERM $SCRIPT_PID
+                      fi
+                      ;;
+    sending-file)     $SSH_COMMAND [[ -d $1 ]] 1> /dev/null 2>&1
+                      if [[ $? -ne 0 ]]
+                      then
+                        printf "destination directory not found\n"
+                        kill -s TERM $SCRIPT_PID
+                      fi
+                      ;;
+    *)                kill -s TERM $SCRIPT_PID
+                      ;;
+  esac
 }
 
 function check_destination {
@@ -135,24 +178,26 @@ function check_destination {
                       ;;
     receiving-file)   if [[ -d $destination_pool ]]
                       then
-                        #todo: returen 0 when incremental files is implementd
-                        return 1
+                        name=$(echo $1 | awk -F '/' '{print $NF}')
+                        ls $destination_pool | grep $name 1> /dev/null 2>&1
+                        return $?
                       else
-                        echo "ERROR: Destination dir not found!"
-                        exit 1
+                        printf "ERROR: Destination dir not found!\n"
+                        kill -s TERM $SCRIPT_PID
                       fi
                       ;;
     sending-file)     $SSH_COMMAND [[ -d $destination_pool ]] 1> /dev/null 2>&1
-                      #todo: return $? when incremental files is implemented
                       if [[ $? -eq 0 ]]
                       then
-                        return 1
+                        name=$(echo $1 | awk -F '/' '{print $NF}')
+                        $SSH_COMMAND ls $destination_pool 2> /dev/null | grep $name 1> /dev/null 2>&1
+                        return $?
                       else
-                        echo "ERROR: Destination dir not found!"
-                        exit 1
+                        printf "ERROR: Destination dir not found!\n"
+                        kill -s TERM $SCRIPT_PID
                       fi
                       ;;
-    *)                exit 1
+    *)                kill -s TERM $SCRIPT_PID
                       ;;
   esac
 }
@@ -165,12 +210,12 @@ function create_source_snap {
                   ;;
     sending*)     zfs snapshot ${volume_name}@${snapshot_name}
                   ;;
-    *)            exit 1
+    *)            kill -s TERM $SCRIPT_PID
                   ;;
   esac
   if [[ $? -ne 0 ]]
   then
-    exit $?
+    kill -s TERM $SCRIPT_PID
   fi
 }
 
@@ -186,18 +231,18 @@ function initial_zfs_send {
                         $SSH_COMMAND "gunzip -c - | zfs receive $destination_volume_name" 2> /dev/null
                       ;;
     receiving-file)   $SSH_COMMAND "zfs send ${source_volume_name}@${snapshot_name} | gzip -9" 2> /dev/null \
-                        > "${destination_volume_name}_${snapshot_name}.zfs.gz"
+                        > "${destination_volume_name}@${snapshot_name}.zfs.gz"
                       ;;
     sending-file)     zfs send ${source_volume_name}@${snapshot_name} | gzip -9 | \
-                        $SSH_COMMAND "tee ${destination_volume_name}_${snapshot_name}.zfs.gz > /dev/null" 2> /dev/null
+                        $SSH_COMMAND "tee ${destination_volume_name}@${snapshot_name}.zfs.gz > /dev/null" 2> /dev/null 1>&2
                       ;;
-    *)                exit 1
+    *)                kill -s TERM $SCRIPT_PID
                       ;;
   esac
 
   if [[ $? -ne 0 ]]
   then
-    exit $?
+    kill -s TERM $SCRIPT_PID
   fi
 }
 
@@ -207,7 +252,7 @@ function list_source_snaps {
                   ;;
     sending*)     zfs list -r -t snapshot -H -o name $1
                   ;;
-    *)            exit 1
+    *)            kill -s TERM $SCRIPT_PID
                   ;;
   esac
 }
@@ -218,15 +263,11 @@ function list_destination_snaps {
                     ;;
     sending)        $SSH_COMMAND zfs list -r -t snapshot -H -o name $1 2> /dev/null
                     ;;
-    receiving-file) echo ""
-                    #todo: only full send in file mode at this moment, should implemt incremntal files
-                    #ls | grep $1 | sed -e "s/^"$1"_//g" | sed -e "\.zfs\.gz$//g"
+    receiving-file) ls -tr $destination_pool | grep $(echo $1 | awk -F '/' '{print $NF}') | sed -e 's/\.zfs\.gz$//g'
                     ;;
-    sending-file)   echo ""
-                    #todo: only full send in file mode at this moment, should implemt incremntal files
-                    #$SSH_COMMAND "ls $1 | grep $1" | sed -e "s/^"$1"_//g" | sed -e "\.zfs\.gz$//g"
+    sending-file)   $SSH_COMMAND ls -tr $destination_pool 2> /dev/null | grep $(echo $1 | awk -F '/' '{print $NF}') | sed -e 's/\.zfs\.gz$//g'
                     ;;
-    *)              exit 1
+    *)              kill -s TERM $SCRIPT_PID
                     ;;
   esac
 }
@@ -245,25 +286,25 @@ function incremental_zfs_send {
                       $SSH_COMMAND "gunzip -c - | zfs receive -F $destination_volume_name" 2> /dev/null
                     ;;
     receiving-file) $SSH_COMMAND "zfs send -i ${source_volume_name}@${from_snap} ${source_volume_name}@${to_snap} | gzip -9" 2> /dev/null \
-                      1> "${destination_volume_name}_${snapshot_name}.zfs.gz"
+                      1> "${destination_volume_name}@${snapshot_name}.zfs.gz"
                     ;;
     sending-file)   zfs send -i ${source_volume_name}@${from_snap} ${source_volume_name}@${to_snap} | gzip -9 | \
-                      $SSH_COMMAND "tee ${destination_volume_name}_${snapshot_name}.zfs.gz > /dev/null" 2> /dev/null
+                      $SSH_COMMAND "tee ${destination_volume_name}@${snapshot_name}.zfs.gz > /dev/null" 2> /dev/null
                     ;;
-    *)              exit 1
+    *)              kill -s TERM $SCRIPT_PID
                     ;;
   esac
 }
 
 function cleanup_source_snap {
   case $mode in
-    receiving)    if ! ( $SSH_COMMAND zfs list -t snapshot $1 1> /dev/null 2>&1 ); then exit 1; fi
+    receiving*)   if ! ( $SSH_COMMAND zfs list -t snapshot $1 1> /dev/null 2>&1 ); then kill -s TERM $SCRIPT_PID; fi
                   $SSH_COMMAND zfs destroy $1 1> /dev/null 2>&1
                   ;;
-    sending)      if ! ( zfs -t snapshot $1 1> /dev/null 2>&1 ); then exit 1; fi
-                  zfs destroy $i
+    sending*)     if ! ( zfs list -t snapshot $1 1> /dev/null 2>&1 ); then kill -s TERM $SCRIPT_PID; fi
+                  zfs destroy $1
                   ;;
-    *)            exit 1
+    *)            kill -s TERM $SCRIPT_PID
                   ;;
   esac
 }
@@ -276,7 +317,7 @@ function get_zone_zfs_list {
     sending*)     ( vmadm list -H -o zonepath type=OS | sed -e 's/^\///g'
                     vmadm list -H -o zonepath type=LX | sed -e 's/^\///g' ) | tr '\n' ' '
                   ;;
-    *)            exit 1
+    *)            kill -s TERM $SCRIPT_PID
                   ;;
   esac
 }
@@ -288,14 +329,16 @@ then
   zfs_volumes="$zfs_volumes $(get_zone_zfs_list)"
 fi
 
-if [[ $zfs_volumes = '' ]]; then do_help "source zfs required"; fi
+if [[ $zfs_volumes = '' ]]; then do_help "source zfs or -Z required"; fi
 
 # main
 
-printf "%(%Y%m%d %H:%M:%S)T start zfs sync\n"
 printf "%-50s : %s\n" "Mode" $mode
 printf "%-50s : %s\n" "Remote host" $remote_host
 printf "%-50s : %s\n" "Remote key file" $remote_key
+printf "%-47s  ... " "Checking destination"
+check_destination_pool $destination_pool
+printf "ok\n"
 
 for zfs_volume in $zfs_volumes
 do
@@ -352,7 +395,7 @@ do
       rm -f /tmp/source_snaps
       rm -f /tmp/destination_snaps
     else
-      printf "%-50s" "ERROR: latest snap on destination not found on source !!!\n"
+      printf "%-50s\n" "ERROR: latest snap on destination not found on source !!!"
       # no common snap but destination zfs exists should destroy and send initial backup
       # but not implemented as this might destory an zfs volume holding data
       exit 1
