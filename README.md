@@ -27,7 +27,3 @@ backup and sync remote zfs volumes over ssh
     -Z                    :   include all zfs linked to vmadm LX or OS zones (if -Z the other ZFS list can be empty)
     [ZFS] ...             :   list of zfs to sync
 ```
-
-## WARNING
-
-The -f option for sending to files only supports full zfs send no incremental sends implemented yet.
