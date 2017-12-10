@@ -1,0 +1,4 @@
+SHELL=/usr/bin/bash
+#
+# m     h     dom   mon   dow     command
+  0     0     *     *     *       /opt/local/bin/zfs-sync.sh -r host.example.com -i my-private-key -d zones/backup/host.example.com -c -Z zones/extra 1> /var/log/zfs-sync.log 2> /dev/null

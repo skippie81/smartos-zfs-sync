@@ -50,3 +50,10 @@ example that would be run on the backup host and receives zfs volumes of all OS 
 ```
 ./zfs-sync.sh -r host.example.com -i my-private-key -d zones/backup/host.example.com -c -Z zones/extra
 ```
+
+## Sheduling
+
+When running in a smartos global zone there is a cron service, but the crontab will be empty afther a reboot.
+Moving provided opt/custom/smf/enable-cront.xml, opt/custom/bin/setup-cron.sh and opt/custom/etc/cron/crontab.root to /opt/custom/...
+will create a service (svc:smartos/cron-setup:default) that injects the /opt/local/etc/cront/crontab.root into the crontab after reboot.
+Please modify crontab.root file as required.
