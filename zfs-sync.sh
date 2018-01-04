@@ -8,7 +8,7 @@ function do_help {
 cat <<EOF
   backup and sync remote zfs volumes over ssh
 
-  usage: $0 -r <host>|-s <host> [-i <keyfile>] [-P <port>] -p <destination zfs> [-Z] [-f] [-c] [-p <snapshot prefix>] [-h] [ZFS] [ZFS] ...
+  usage: $0 -r <host>|-s <host> [-i <keyfile>] [-P <port>] -p <destination zfs> [-Z] [-f] [-c] [-C <keep>] [-p <snapshot prefix>] [-h] [ZFS] [ZFS] ...
     -r <host>             :   receiving mode. the host this scripts runs on is the backup host and receives the zfs stream from <host>
     -s <host>             :   sending mode.   the host this scripts runs on is the source host and sends its zfs stream out to <host>
 
@@ -20,6 +20,7 @@ cat <<EOF
 
     -f                    :   file mode.      the backup host stores the zfs streams in compressed files
     -c                    :   enable cleanup. removes older snapshots on the source volume (only keeps the latest backup snap)
+    -C <nr_keep>          :   enable destination cleanup. keeps latest <nr_keep> and removes older snapshot on destinations ( only on zfs destinations )
 
     -p <snapshot prefix>  :   snapshot prefix, the default is \'snap\' resulting in a snapshot name: snap-YYYYmmddTHHMMSS
 
@@ -47,6 +48,7 @@ remote_host=''
 remote_key=''
 cleanup=false
 to_file=false
+dest_cleanup=false
 
 zfs_volumes=''
 destination_pool=''
@@ -70,6 +72,9 @@ do
     f)  to_file=true
         ;;
     c)  cleanup=true
+        ;;
+    C)  dest_cleanup=true
+        dest_cleanup_keep=$OPTARG
         ;;
     h)  do_help
         ;;
@@ -105,6 +110,20 @@ if ! [[ $ssh_port =~ ^[0-9]+$ ]]; then do_help "ssh port expect number"; fi
 if [[ $mode == 'sending' || $mode == 'receiving' ]]
 then
   destination_pool=$(echo $destination_pool | sed -e 's/^\///g')
+fi
+
+# check when destination cleanup is enabled we are not running in send to file mode
+# check if destination cleanup count is number > 1
+if [[ $dest_cleanup == true ]]
+then
+  if [[ $to_file == true ]]
+  then
+    do_help "destination cleanup not possible in send to file mode"
+  fi
+  if ! [[ $dest_cleanup_keep =~ ^[0-9]+$ && $dest_cleanup_keep -gt 0 ]]
+  then
+    do_help "destination cleanup <nr_keep> needs number >= 1"
+  fi
 fi
 
 # building the ssh command line
@@ -326,6 +345,19 @@ function cleanup_source_snap {
   esac
 }
 
+function cleanup_destination_snap {
+  case $mode in
+    receiving)    if ! ( zfs list -t snapshot $1 1> /dev/null 2>&1 ); then kill -s TERM $SCRIPT_PID; fi
+                  zfs destroy $1
+                  ;;
+    sending)      if ! ( $SSH_COMMAND zfs list -t snapshot $1 1> /dev/null 2>&1 ); then kill -s TERM $SCRIPT_PID; fi
+                  $SSH_COMMAND zfs destroy $1 1> /dev/null 2>&1
+                  ;;
+    *)            kill -s TERM $SCRIPT_PID
+                  ;;
+  esac
+}
+
 function get_zone_zfs_list {
   case $mode in
     receiving*)   ( $SSH_COMMAND vmadm list -H -o zonepath type=OS 2> /dev/null | sed -e 's/^\///g'
@@ -409,6 +441,23 @@ do
           fi
         fi
       done
+
+      if [[ $dest_cleanup == true ]]
+      then
+        printf "%-47s  ... %s\n" "clearing old snapshtos on destination" "keep $dest_cleanup_keep"
+        if [[ $(cat /tmp/destination_snaps | wc -l) -gt $dest_cleanup_keep ]]
+        then
+          for old_destination_snap in $( cat /tmp/destination_snaps | head -n $(( $( cat /tmp/destination_snaps | wc -l ) - dest_cleanup_keep )) )
+          do
+            printf "%47s ... " $old_destination_snap
+            cleanup_destination_snap $old_destination_snap
+            printf "ok\n"
+          done
+        else
+          printf "%50s\n" "destinations only holds $(cat /tmp/destination_snaps | wc -l) previous snaps"
+        fi
+      fi
+
       rm -f /tmp/source_snaps
       rm -f /tmp/destination_snaps
     else
