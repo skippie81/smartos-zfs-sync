@@ -56,7 +56,7 @@ destination_pool=''
 zone_backup=false
 
 # read options
-while getopts ":hfcZr:s:d:i:p:P:" opt
+while getopts ":hfcZr:s:d:i:p:P:C:" opt
 do
   case $opt in
     r)  mode=receiving
