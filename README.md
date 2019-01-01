@@ -6,7 +6,7 @@ Or backup local zfs volumes over ssh to a remote zfs volumes or file(s)
 ## Install
 
 ```
-curl -kO https://raw.githubusercontent.com/skippie81/smartos-zfs-sync/master/zfs-sync.sh
+curl -kLo /opt/local/bin/zfs-sync.sh https://raw.githubusercontent.com/skippie81/smartos-zfs-sync/master/zfs-sync.sh
 chmod +x zfs-sync.sh
 ```
 
