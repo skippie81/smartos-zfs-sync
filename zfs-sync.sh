@@ -18,10 +18,17 @@ cat <<EOF
     -d <destination zfs>  :   the pool to receive the zfs stream (a zfs <destination pool>/<source zfs> wil be created for every source
                               in file mode this has to be and existing path to store the files
 
-    -f                    :   file mode.      the backup host stores the zfs streams in compressed files. Initial full backup followed by incremental.
-    -F                    :   full backup file mode.  the backup host stores zfs stream in compressed file. Always do full send to file.
+    -f                    :   file mode.
+                              the backup host stores the zfs streams in compressed files.
+                              Initial full backup followed by incremental.
+    -F                    :   full backup file mode.
+                              the backup host stores zfs stream in compressed file.
+                              Always do full send to file.
+
     -c                    :   enable cleanup. removes older snapshots on the source volume (only keeps the latest backup snap)
-    -C <nr_keep>          :   enable destination cleanup. keeps latest <nr_keep> and removes older snapshot on destinations ( only on zfs destinations )
+    -C <nr_keep>          :   enable destination cleanup.
+                              keeps latest <nr_keep> and removes older snapshot on destinations
+                              only available on zfs destinations.
 
     -p <snapshot prefix>  :   snapshot prefix, the default is \'snap\' resulting in a snapshot name: snap-YYYYmmddTHHMMSS
 
