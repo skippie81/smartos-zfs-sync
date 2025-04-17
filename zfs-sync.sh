@@ -147,7 +147,7 @@ fi
 SSH_COMMAND="$SSH_COMMAND $remote_host"
 
 # testing ssh connection
-if ! ( $SSH_COMMAND id 2> /dev/null 1>&2 )
+if ! ( $SSH_COMMAND ls 2> /dev/null 1>&2 )
 then
   echo "ERROR: ssh connection - $SSH_COMMAND - not working"
   exit 1
@@ -194,7 +194,7 @@ function check_destination_pool {
                         kill -s TERM $SCRIPT_PID
                       fi
                       ;;
-    sending-file)     $SSH_COMMAND [[ -d $1 ]] 1> /dev/null 2>&1
+    sending-file)     $SSH_COMMAND ls ${1}/ 1> /dev/null 2>&1
                       if [[ $? -ne 0 ]]
                       then
                         printf "destination directory not found\n"
@@ -224,7 +224,7 @@ function check_destination {
                         kill -s TERM $SCRIPT_PID
                       fi
                       ;;
-    sending-file)     $SSH_COMMAND [[ -d $destination_pool ]] 1> /dev/null 2>&1
+    sending-file)     $SSH_COMMAND ls ${destination_pool}/ ]] 1> /dev/null 2>&1
                       if [[ $? -eq 0 ]]
                       then
                         name=$(echo $1 | awk -F '/' '{print $NF}')
