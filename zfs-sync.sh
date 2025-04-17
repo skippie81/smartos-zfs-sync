@@ -18,7 +18,8 @@ cat <<EOF
     -d <destination zfs>  :   the pool to receive the zfs stream (a zfs <destination pool>/<source zfs> wil be created for every source
                               in file mode this has to be and existing path to store the files
 
-    -f                    :   file mode.      the backup host stores the zfs streams in compressed files
+    -f                    :   file mode.      the backup host stores the zfs streams in compressed files. Initial full backup followed by incremental.
+    -F                    :   full backup file mode.  the backup host stores zfs stream in compressed file. Always do full send to file.
     -c                    :   enable cleanup. removes older snapshots on the source volume (only keeps the latest backup snap)
     -C <nr_keep>          :   enable destination cleanup. keeps latest <nr_keep> and removes older snapshot on destinations ( only on zfs destinations )
 
@@ -48,6 +49,7 @@ remote_host=''
 remote_key=''
 cleanup=false
 to_file=false
+force_initial=false
 dest_cleanup=false
 
 zfs_volumes=''
@@ -56,7 +58,7 @@ destination_pool=''
 zone_backup=false
 
 # read options
-while getopts ":vhfcZr:s:d:i:p:P:C:" opt
+while getopts ":vhfFcZr:s:d:i:p:P:C:" opt
 do
   case $opt in
     v)  set -x
@@ -72,6 +74,9 @@ do
     d)  destination_pool=$OPTARG
         ;;
     f)  to_file=true
+        ;;
+    F)  to_file=true
+        force_initial=true
         ;;
     c)  cleanup=true
         ;;
@@ -408,7 +413,7 @@ do
   # if check_destination returns 1 the destination exists and an incremental backup is to be made
   # if not found we wil start an initial backup to a new zfs volume
   printf "%-47s  ... " "searching for destination volume/files"
-  if ( check_destination $zfs_destination )
+  if ( check_destination $zfs_destination && ! ${force_initial} )
   then
     printf "found\n"
     printf "%-47s  ... " "listing snapshots on source"
@@ -471,7 +476,6 @@ do
       exit 1
     fi
   else
-    printf "not found\n"
     # will be creating an initial backup
     printf "%-47s  ... " "creating snapshot on source"
     create_source_snap $zfs_volume $snap_name
