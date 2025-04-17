@@ -269,10 +269,10 @@ function initial_zfs_send {
                         $SSH_COMMAND "gunzip -c - | zfs receive $destination_volume_name" 2> /dev/null
                       ;;
     receiving-file)   $SSH_COMMAND "zfs send ${source_volume_name}@${snapshot_name} | gzip -9" 2> /dev/null \
-                        > "${destination_volume_name}@${snapshot_name}.zfs.gz"
+                        > "full_${destination_volume_name}@${snapshot_name}.zfs.gz"
                       ;;
     sending-file)     zfs send ${source_volume_name}@${snapshot_name} | gzip -9 | \
-                        $SSH_COMMAND "dd of=${destination_volume_name}@${snapshot_name}.zfs.gz > /dev/null" 2> /dev/null 1>&2
+                        $SSH_COMMAND "dd of=full_${destination_volume_name}@${snapshot_name}.zfs.gz > /dev/null" 2> /dev/null 1>&2
                       ;;
     *)                kill -s TERM $SCRIPT_PID
                       ;;
@@ -324,10 +324,10 @@ function incremental_zfs_send {
                       $SSH_COMMAND "gunzip -c - | zfs receive -F $destination_volume_name" 2> /dev/null
                     ;;
     receiving-file) $SSH_COMMAND "zfs send -i ${source_volume_name}@${from_snap} ${source_volume_name}@${to_snap} | gzip -9" 2> /dev/null \
-                      1> "${destination_volume_name}@${snapshot_name}.zfs.gz"
+                      1> "incremental_${destination_volume_name}@${snapshot_name}.zfs.gz"
                     ;;
     sending-file)   zfs send -i ${source_volume_name}@${from_snap} ${source_volume_name}@${to_snap} | gzip -9 | \
-                      $SSH_COMMAND "dd of=${destination_volume_name}@${snapshot_name}.zfs.gz > /dev/null" 2> /dev/null
+                      $SSH_COMMAND "dd of=incremental_${destination_volume_name}@${snapshot_name}.zfs.gz > /dev/null" 2> /dev/null
                     ;;
     *)              kill -s TERM $SCRIPT_PID
                     ;;
