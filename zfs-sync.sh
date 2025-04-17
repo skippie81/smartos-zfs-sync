@@ -301,9 +301,11 @@ function list_destination_snaps {
                     ;;
     sending)        $SSH_COMMAND zfs list -r -t snapshot -H -o name $1 2> /dev/null
                     ;;
-    receiving-file) ls -tr $destination_pool | grep $(echo $1 | awk -F '/' '{print $NF}') | sed -e 's/\.zfs\.gz$//g'
+    receiving-file) ls -tr $destination_pool | grep $(echo $1 | awk -F '/' '{print $NF}') | \
+                    sed -e 's/\.zfs\.gz$//g' | sed -e 's/^full_//g' | sed -e 's/^incremental_//g'
                     ;;
-    sending-file)   $SSH_COMMAND ls -tr $destination_pool 2> /dev/null | grep $(echo $1 | awk -F '/' '{print $NF}') | sed -e 's/\.zfs\.gz$//g'
+    sending-file)   $SSH_COMMAND ls -tr $destination_pool 2> /dev/null | grep $(echo $1 | awk -F '/' '{print $NF}') | \
+                    sed -e 's/\.zfs\.gz$//g' | sed -e 's/^full_//g' | sed -e 's/^incremental_//g'
                     ;;
     *)              kill -s TERM $SCRIPT_PID
                     ;;
