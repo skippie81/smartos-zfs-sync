@@ -56,9 +56,11 @@ destination_pool=''
 zone_backup=false
 
 # read options
-while getopts ":hfcZr:s:d:i:p:P:C:" opt
+while getopts ":vhfcZr:s:d:i:p:P:C:" opt
 do
   case $opt in
+    v)  set -x
+        ;;
     r)  mode=receiving
         remote_host=$OPTARG
         ;;
